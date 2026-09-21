@@ -1,10 +1,15 @@
 #![no_std]
 #![no_main]
 
+mod sink;
+
 use core::arch::asm;
 
-use limine::request::{RequestsEndMarker, RequestsStartMarker};
+use klog::error;
 use limine::BaseRevision;
+use limine::request::{RequestsEndMarker, RequestsStartMarker};
+
+use crate::sink::serial::SerialSink;
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -27,6 +32,12 @@ unsafe extern "C" fn kmain() -> ! {
     // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
+    klog::init().expect("Failed to init logging");
+    klog::register_sink(&SerialSink).expect("Sink buffer is full");
+    error!("Oh no!");
+    error!(
+        "A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message A very long message "
+    );
 
     hcf();
 }

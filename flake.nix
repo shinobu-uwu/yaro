@@ -44,10 +44,20 @@
             ];
           }
         );
-        src = craneLib.cleanCargoSource ./.;
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = lib.fileset.unions [
+            ./Cargo.toml
+            ./Cargo.lock
+            ./.cargo
+            # Include all workspace crates and their build assets automatically.
+            ./crates
+          ];
+        };
 
         commonArgs = {
           inherit src;
+          pname = "yaro";
           strictDeps = true;
           doCheck = false;
 
@@ -68,26 +78,10 @@
           inherit (craneLib.crateNameFromCargoToml { inherit src; }) version;
         };
 
-        fileSetForCrate =
-          crate:
-          lib.fileset.toSource {
-            root = ./.;
-            fileset = lib.fileset.unions [
-              ./Cargo.toml
-              ./Cargo.lock
-              (craneLib.fileset.commonCargoSources crate)
-              # common build asset directories
-              (lib.fileset.maybeMissing (crate + "/linker-scripts"))
-              (lib.fileset.maybeMissing (crate + "/asm"))
-              (lib.fileset.maybeMissing (crate + "/assets"))
-            ];
-          };
-
         kernel = craneLib.buildPackage (
           individualCrateArgs
           // {
             pname = "kernel";
-            src = fileSetForCrate ./crates/kernel;
             cargoExtraArgs = "-p kernel";
           }
         );
@@ -162,6 +156,7 @@
 
               exec ${pkgs.qemu}/bin/qemu-system-x86_64 \
                 -M q35 \
+                -serial stdio \
                 -drive if=pflash,unit=0,format=raw,file=$OVMF_CODE,readonly=on \
                 -drive if=pflash,unit=1,format=raw,file=$OVMF_VARS \
                 -cdrom $ISO
