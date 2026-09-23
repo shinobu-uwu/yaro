@@ -27,23 +27,21 @@
 
         inherit (pkgs) lib;
 
-        craneLib = (crane.mkLib pkgs).overrideToolchain (
-          p:
-          p.rust-bin.stable.latest.default.override {
-            targets = [ "x86_64-unknown-none" ];
-            extensions = [
-              # includes already:
-              # rustc
-              # cargo
-              # rust-std
-              # rust-docs
-              # rustfmt-preview
-              # clippy-preview
-              "rust-analyzer"
-              "rust-src"
-            ];
-          }
-        );
+        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+          targets = [ "x86_64-unknown-none" ];
+          extensions = [
+            # includes already:
+            # rustc
+            # cargo
+            # rust-std
+            # rust-docs
+            # rustfmt-preview
+            # clippy-preview
+            "rust-analyzer"
+            "rust-src"
+          ];
+        };
+        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
         src = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
@@ -140,28 +138,50 @@
           default = kernel;
           iso = iso;
         };
-        apps.default = {
-          type = "app";
-          program = toString (
-            pkgs.writeShellScript "run-qemu" ''
-              set -e
+        apps = rec {
+          default = dev;
+          dev = {
+            type = "app";
+            program = lib.getExe (pkgs.writeShellApplication {
+              name = "yaro-dev";
+              runtimeInputs = [ rustToolchain pkgs.stdenv.cc pkgs.coreutils pkgs.xorriso pkgs.limine pkgs.qemu ];
+              text = ''
+                if [[ ! -f crates/kernel/Cargo.toml || ! -f limine.conf ]]; then
+                  echo "Run nix run from the repository root." >&2
+                  exit 1
+                fi
 
-              ISO=${iso}/kernel.iso
+                # Keep Cargo artifacts in the working tree across invocations.
+                cargo build --locked -p kernel --target x86_64-unknown-none --target-dir "$PWD/target"
 
-              OVMF_CODE=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd
-              OVMF_VARS=$(mktemp)
+                run_dir=$(mktemp -d "$PWD/target/qemu-dev.XXXXXX")
+                trap 'rm -rf "$run_dir"' EXIT
+                iso_root="$run_dir/iso_root"
+                mkdir -p "$iso_root/boot/limine" "$iso_root/EFI/BOOT"
+                cp target/x86_64-unknown-none/debug/kernel "$iso_root/boot/kernel"
+                cp limine.conf "$iso_root/boot/limine/limine.conf"
+                cp ${limine}/limine-bios.sys ${limine}/limine-bios-cd.bin \
+                  ${limine}/limine-uefi-cd.bin "$iso_root/boot/limine/"
+                cp ${limine}/BOOTX64.EFI ${limine}/BOOTIA32.EFI "$iso_root/EFI/BOOT/"
 
-              cp ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd $OVMF_VARS
-              chmod +w $OVMF_VARS
+                xorriso -as mkisofs -b boot/limine/limine-bios-cd.bin \
+                  -no-emul-boot -boot-load-size 4 -boot-info-table \
+                  --efi-boot boot/limine/limine-uefi-cd.bin \
+                  -efi-boot-part --efi-boot-image --protective-msdos-label \
+                  "$iso_root" -o "$run_dir/kernel.iso"
+                limine bios-install "$run_dir/kernel.iso"
 
-              exec ${pkgs.qemu}/bin/qemu-system-x86_64 \
-                -M q35 \
-                -serial stdio \
-                -drive if=pflash,unit=0,format=raw,file=$OVMF_CODE,readonly=on \
-                -drive if=pflash,unit=1,format=raw,file=$OVMF_VARS \
-                -cdrom $ISO
-            ''
-          );
+                cp ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd "$run_dir/OVMF_VARS.fd"
+                chmod u+w "$run_dir/OVMF_VARS.fd"
+                qemu-system-x86_64 \
+                  -M q35 \
+                  -serial stdio \
+                  -drive if=pflash,unit=0,format=raw,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd,readonly=on \
+                  -drive "if=pflash,unit=1,format=raw,file=$run_dir/OVMF_VARS.fd" \
+                  -cdrom "$run_dir/kernel.iso" "$@"
+              '';
+            });
+          };
         };
         devShells.default = craneLib.devShell {
           packages = [

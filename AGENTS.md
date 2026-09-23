@@ -19,7 +19,7 @@ Enable Nix's `flakes` and `nix-command` features, then run commands from the rep
 - `nix develop`: enter the Rust development environment; `.envrc` also supports direnv.
 - `nix build`: build the kernel ELF at `result/bin/kernel`.
 - `nix build .#iso`: create the bootable image at `result/kernel.iso`.
-- `nix run`: build the ISO and boot it in QEMU with UEFI firmware.
+- `nix run`: build the debug kernel with Cargo's local `target/` cache, package a temporary ISO, and boot QEMU with UEFI firmware. Run from the repository root; extra QEMU flags follow `--`. `nix run .#dev` is an alias.
 - `cargo fmt --all -- --check`: check Rust formatting inside the development shell; use `cargo fmt --all` to apply formatting.
 
 ## Coding Style & Naming Conventions

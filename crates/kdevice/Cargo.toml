@@ -1,0 +1,10 @@
+[package]
+name = "kdevice"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+karch = { path = "../karch/" }
+
+[lints]
+workspace = true

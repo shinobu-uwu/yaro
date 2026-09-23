@@ -15,10 +15,6 @@ log = "0.4.34"
 spin = "0.12.3"
 
 [workspace.lints.clippy]
-# Overflows are very, very bad in kernel code as it may provide an attack vector for
-# userspace applications, and it is only checked in debug builds
-# TODO: address occurrences and then deny
-arithmetic_side_effects = "warn"
 cast_ptr_alignment = "warn"  # TODO: address occurrences and then deny
 identity_op = "allow"  # Used to allow stuff like 1 << 0 and 1 * 1024 * 1024
 if_same_then_else = "allow"  # Useful for adding comments about different branches

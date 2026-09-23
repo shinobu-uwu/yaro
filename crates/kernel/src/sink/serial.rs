@@ -1,21 +1,32 @@
 use core::fmt::Write;
 
+#[cfg(not(target_arch = "x86_64"))]
+use kdevice::serial::uart16550::MmioUart16550 as PlatformUart;
+#[cfg(target_arch = "x86_64")]
+use kdevice::serial::uart16550::PortUart16550 as PlatformUart;
 use klog::{Level, Sink};
 use lazy_static::lazy_static;
 use spin::Mutex;
-use uart_16550::SerialPort;
 
 lazy_static! {
-    pub static ref SERIAL_PORT: Mutex<SerialPort> = unsafe {
-        let mut s = SerialPort::new(0x3F8);
-        s.init();
-        Mutex::new(s)
-    };
+    pub static ref UART: Mutex<PlatformUart> = Mutex::new(init_uart());
 }
 
-pub struct SerialSink;
+#[cfg(target_arch = "x86_64")]
+fn init_uart() -> PlatformUart {
+    let mut uart = PlatformUart::new_port();
+    uart.init();
+    uart
+}
 
-impl Sink for SerialSink {
+#[cfg(not(target_arch = "x86_64"))]
+fn init_uart() -> PlatformUart {
+    todo!("configure a platform-specific MMIO UART address and initialize it")
+}
+
+pub struct Serial;
+
+impl Sink for Serial {
     fn write(&self, message: &klog::message::Message) {
         let level = message.level;
         let level_color = match message.level {
@@ -27,7 +38,7 @@ impl Sink for SerialSink {
         };
         let module = message.module.unwrap_or_default();
         let line = message.line.unwrap_or_default();
-        let mut serial = SERIAL_PORT.lock();
+        let mut serial = UART.lock();
         write!(
             serial,
             "\x1b[38;5;{level_color}m{level}\x1b[0m [{module}:{line}]: {}\r\n",
