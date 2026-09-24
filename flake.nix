@@ -11,24 +11,22 @@
     };
   };
 
-  outputs =
-    {
-      nixpkgs,
-      crane,
-      flake-utils,
-      rust-overlay,
-      ...
-    }:
+  outputs = {
+    nixpkgs,
+    crane,
+    flake-utils,
+    rust-overlay,
+    ...
+  }:
     flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        overlays = [ rust-overlay.overlays.default ];
-        pkgs = import nixpkgs { inherit system overlays; };
+      system: let
+        overlays = [rust-overlay.overlays.default];
+        pkgs = import nixpkgs {inherit system overlays;};
 
         inherit (pkgs) lib;
 
-        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-          targets = [ "x86_64-unknown-none" ];
+        rustToolchain = pkgs.rust-bin.nightly.latest.default.override {
+          targets = ["x86_64-unknown-none"];
           extensions = [
             # includes already:
             # rustc
@@ -59,11 +57,12 @@
           strictDeps = true;
           doCheck = false;
 
-          buildInputs = [
-          ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.libiconv
-          ];
+          buildInputs =
+            [
+            ]
+            ++ lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.libiconv
+            ];
 
           CARGO_BUILD_TARGET = "x86_64-unknown-none";
           RUSTFLAGS = "-C relocation-model=static";
@@ -71,10 +70,12 @@
 
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-        individualCrateArgs = commonArgs // {
-          inherit cargoArtifacts;
-          inherit (craneLib.crateNameFromCargoToml { inherit src; }) version;
-        };
+        individualCrateArgs =
+          commonArgs
+          // {
+            inherit cargoArtifacts;
+            inherit (craneLib.crateNameFromCargoToml {inherit src;}) version;
+          };
 
         kernel = craneLib.buildPackage (
           individualCrateArgs
@@ -131,8 +132,7 @@
             ${pkgs.limine}/bin/limine bios-install $out/kernel.iso
           '';
         };
-      in
-      {
+      in {
         packages = {
           inherit kernel;
           default = kernel;
@@ -144,7 +144,7 @@
             type = "app";
             program = lib.getExe (pkgs.writeShellApplication {
               name = "yaro-dev";
-              runtimeInputs = [ rustToolchain pkgs.stdenv.cc pkgs.coreutils pkgs.xorriso pkgs.limine pkgs.qemu ];
+              runtimeInputs = [rustToolchain pkgs.stdenv.cc pkgs.coreutils pkgs.xorriso pkgs.limine pkgs.qemu];
               text = ''
                 if [[ ! -f crates/kernel/Cargo.toml || ! -f limine.conf ]]; then
                   echo "Run nix run from the repository root." >&2
