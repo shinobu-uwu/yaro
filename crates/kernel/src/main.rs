@@ -32,8 +32,15 @@ unsafe extern "C" fn kmain() -> ! {
     assert!(BASE_REVISION.is_supported());
     klog::init().expect("Failed to init logging");
     klog::register_sink(&sink::serial::Serial).expect("Sink buffer is full");
+    // SAFETY: This is the boot CPU's only initialization call. Limine enters
+    // with interrupts disabled; no secondary CPUs have been started.
+    unsafe { karch::init() };
 
-    info!("Kernel started successfully! Halting and catching fire");
+    info!("Kernel started successfully!");
+    unsafe {
+        asm!("int3");
+    }
+    info!("It did not crash!");
 
     hcf();
 }

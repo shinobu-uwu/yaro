@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+karch = { path = "../karch" }
 kdevice = { path = "../kdevice" }
 klog = { path = "../klog" }
 lazy_static.workspace = true

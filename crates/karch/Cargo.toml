@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bitflags.workspace = true
+klog = { path = "../klog/" }
+kmemory = { path = "../kmemory/" }
+spin.workspace = true
 
 [lints]
 workspace = true

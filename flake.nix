@@ -5,6 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     crane.url = "github:ipetkov/crane";
     flake-utils.url = "github:numtide/flake-utils";
+    pwndbg.url = "github:pwndbg/pwndbg";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -15,6 +16,7 @@
     nixpkgs,
     crane,
     flake-utils,
+    pwndbg,
     rust-overlay,
     ...
   }:
@@ -175,6 +177,7 @@
                 chmod u+w "$run_dir/OVMF_VARS.fd"
                 qemu-system-x86_64 \
                   -M q35 \
+                  -gdb tcp:127.0.0.1:1234 \
                   -serial stdio \
                   -drive if=pflash,unit=0,format=raw,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd,readonly=on \
                   -drive "if=pflash,unit=1,format=raw,file=$run_dir/OVMF_VARS.fd" \
@@ -185,9 +188,7 @@
         };
         devShells.default = craneLib.devShell {
           packages = [
-            # any package that might be useful for development, suchs as
-            # gdb
-            # bintools
+            pkgs.gdb
           ];
         };
       }

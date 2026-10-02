@@ -42,6 +42,12 @@ dependencies = [
 [[package]]
 name = "karch"
 version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "klog",
+ "kmemory",
+ "spin 0.12.3",
+]
 
 [[package]]
 name = "kdevice"
@@ -54,6 +60,7 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "karch",
  "kdevice",
  "klog",
  "lazy_static",
@@ -70,6 +77,10 @@ dependencies = [
  "log",
  "spin 0.12.3",
 ]
+
+[[package]]
+name = "kmemory"
+version = "0.1.0"
 
 [[package]]
 name = "lazy_static"
