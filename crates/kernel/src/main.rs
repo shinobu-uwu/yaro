@@ -37,16 +37,13 @@ unsafe extern "C" fn kmain() -> ! {
     unsafe { karch::init() };
 
     info!("Kernel started successfully!");
-    unsafe {
-        asm!("int3");
-    }
-    info!("It did not crash!");
 
     hcf();
 }
 
 #[panic_handler]
-fn rust_panic(_info: &core::panic::PanicInfo) -> ! {
+fn rust_panic(info: &core::panic::PanicInfo) -> ! {
+    error!("Kernel panic\n{info}");
     hcf();
 }
 fn hcf() -> ! {

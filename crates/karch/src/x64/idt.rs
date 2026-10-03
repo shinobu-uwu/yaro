@@ -1,6 +1,6 @@
 use core::{arch::asm, marker::PhantomData};
 
-use kmemory::VirtualAddress;
+use kmemory::address::VirtualAddress;
 
 use crate::x64::{TablePointer, gdt::SegmentSelector, registers::InterruptStackFrame};
 
@@ -144,7 +144,7 @@ impl<T: InterruptHandler> Entry<T> {
         }
     }
 
-    pub fn set_handler(&mut self, handler: T) {
+    pub fn set_handler(&mut self, handler: T) -> &mut Self {
         let addr = handler.address().as_u64();
         self.offset_low = addr as u16;
         self.offset_middle = (addr >> 16) as u16;
@@ -156,6 +156,27 @@ impl<T: InterruptHandler> Entry<T> {
         }
         self.options.cs = SegmentSelector::from_u16(cs);
         self.options.bits |= 1 << 15; // present bit
+
+        self
+    }
+
+    /// Selects a zero-based index into the TSS's seven IST stacks.
+    /// `None` uses normal CPU stack selection. Call after `set_handler`,
+    /// which resets the entry's options.
+    ///
+    /// # Panics
+    /// Panics if the index is outside `0..7`.
+    #[inline]
+    pub fn set_stack_index(&mut self, index: Option<usize>) {
+        let encoded = match index {
+            None => 0,
+            Some(index) => {
+                assert!(index < 7, "TSS stack index must be in 0..7");
+                (index + 1) as u16
+            }
+        };
+
+        self.options.bits = (self.options.bits & !0b111) | encoded;
     }
 }
 

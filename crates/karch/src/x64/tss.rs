@@ -1,8 +1,8 @@
 use core::arch::asm;
 
-use kmemory::VirtualAddress;
+use kmemory::address::VirtualAddress;
 
-use crate::x64::{TablePointer, gdt::SegmentSelector};
+use crate::x64::gdt::SegmentSelector;
 
 const _: () = {
     assert!(core::mem::size_of::<TaskStateSegment>() == 104);
@@ -12,13 +12,13 @@ const _: () = {
 #[repr(C, packed)]
 pub struct TaskStateSegment {
     reserved_1: u32,
-    rsp: [VirtualAddress; 3],
+    pub rsp: [VirtualAddress; 3],
     reserved_2: u32,
     reserved_3: u32,
-    ist: [VirtualAddress; 7],
+    pub ist: [VirtualAddress; 7],
     reserved_4: u64,
     reserved_5: u16,
-    iopb: u16,
+    pub iopb: u16,
 }
 
 impl TaskStateSegment {

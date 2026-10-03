@@ -1,13 +1,13 @@
-use core::mem;
-use klog::info;
-use kmemory::{PhysicalAddress, VirtualAddress};
+use core::{mem, ptr::addr_of};
+use kmemory::address::{PhysicalAddress, VirtualAddress};
 
 use crate::x64::{
     gdt::{Descriptor, GlobalDescriptorTable},
     idt::InterruptDescriptorTable,
-    registers::InterruptStackFrame,
     tss::TaskStateSegment,
 };
+
+mod exceptions;
 
 pub mod gdt;
 pub mod idt;
@@ -21,12 +21,14 @@ const _: () = {
     assert!(mem::size_of::<TablePointer>() == 10);
     assert!(mem::offset_of!(TablePointer, base) == 2);
 };
+const STACK_SIZE: usize = 16 * 1024; // 16KiB
 
-static TSS: TaskStateSegment = TaskStateSegment::new();
+static mut TSS: TaskStateSegment = TaskStateSegment::new();
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::empty();
+static mut DOUBLE_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
-/// Installs the boot CPU's GDT and TSS.
+/// Installs the boot CPU's GDT, TSS, and exception handlers.
 ///
 /// # Safety
 /// Must be called exactly once, at ring 0 on the boot CPU, with interrupts
@@ -35,9 +37,15 @@ static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::empty();
 /// for as long as they are active. The GDT must not be modified afterward.
 /// The caller must arrange compatible segment selectors and interrupt handlers
 /// before enabling interrupts, and configure TSS stacks before using them.
-#[allow(static_mut_refs)] // Early boot provides exclusive access under the contract above.
+// Early boot provides exclusive access under the contract above. Also,
+// for now the kenel is single-threaded, so no race condition can happen
+// eventually this will be moved to a CPU-local structure
+#[allow(static_mut_refs)]
 pub unsafe fn init() {
     unsafe {
+        let base = addr_of!(DOUBLE_FAULT_STACK) as usize;
+        let top = VirtualAddress::new(base + STACK_SIZE);
+        TSS.ist[0] = top;
         let tss_selector = GDT.push_back(Descriptor::tss(&TSS));
         let kernel_code = GDT.push_back(Descriptor::kernel_code());
         let kernel_data = GDT.push_back(Descriptor::kernel_data());
@@ -66,13 +74,44 @@ pub unsafe fn init() {
 
         TaskStateSegment::load(tss_selector);
 
-        IDT.breakpoint.set_handler(debug_interrupt);
+        IDT.divide_error.set_handler(exceptions::divide_error);
+        IDT.debug.set_handler(exceptions::debug);
+        IDT.nmi.set_handler(exceptions::nmi);
+        IDT.breakpoint.set_handler(exceptions::breakpoint);
+        IDT.overflow.set_handler(exceptions::overflow);
+        IDT.bound_range_exceeded
+            .set_handler(exceptions::bound_range_exceeded);
+        IDT.invalid_opcode.set_handler(exceptions::invalid_opcode);
+        IDT.device_not_available
+            .set_handler(exceptions::device_not_available);
+        IDT.x87_floating_point
+            .set_handler(exceptions::x87_floating_point);
+        IDT.simd_floating_point
+            .set_handler(exceptions::simd_floating_point);
+        IDT.virtualization.set_handler(exceptions::virtualization);
+        IDT.hv_injection_exception
+            .set_handler(exceptions::hv_injection_exception);
+        IDT.invalid_tss.set_handler(exceptions::invalid_tss);
+        IDT.segment_not_present
+            .set_handler(exceptions::segment_not_present);
+        IDT.stack_segment_fault
+            .set_handler(exceptions::stack_segment_fault);
+        IDT.general_protection_fault
+            .set_handler(exceptions::general_protection_fault);
+        IDT.page_fault.set_handler(exceptions::page_fault);
+        IDT.alignment_check.set_handler(exceptions::alignment_check);
+        IDT.cp_protection_exception
+            .set_handler(exceptions::cp_protection_exception);
+        IDT.vmm_communication_exception
+            .set_handler(exceptions::vmm_communication_exception);
+        IDT.security_exception
+            .set_handler(exceptions::security_exception);
+        IDT.machine_check.set_handler(exceptions::machine_check);
+        IDT.double_fault
+            .set_handler(exceptions::double_fault)
+            .set_stack_index(Some(0));
         IDT.load();
     }
-}
-
-extern "x86-interrupt" fn debug_interrupt(_: InterruptStackFrame) {
-    info!("Breakpoint interrupt handler called!");
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -4,7 +4,7 @@ use crate::x64::{gdt::SegmentSelector, registers::rflags::RFlags};
 
 pub mod rflags;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct InterruptStackFrame {
     pub ip: VirtualAddress,
