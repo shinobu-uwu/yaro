@@ -1,4 +1,4 @@
-use kmemory::VirtualAddress;
+use kmemory::address::VirtualAddress;
 
 use crate::x64::{gdt::SegmentSelector, registers::rflags::RFlags};
 
