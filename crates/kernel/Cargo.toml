@@ -1,12 +1,12 @@
 [package]
-name = "kernel"
+name = "yaro_kernel"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-karch = { path = "../karch" }
-kdevice = { path = "../kdevice" }
-klog = { path = "../klog" }
+yaro_arch = { path = "../arch" }
+yaro_device = { path = "../device" }
+yaro_log = { path = "../log" }
 lazy_static.workspace = true
 limine = "0.5.0"
 spin.workspace = true

@@ -40,49 +40,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "karch"
-version = "0.1.0"
-dependencies = [
- "bitflags",
- "klog",
- "kmemory",
- "spin 0.12.3",
-]
-
-[[package]]
-name = "kdevice"
-version = "0.1.0"
-dependencies = [
- "karch",
-]
-
-[[package]]
-name = "kernel"
-version = "0.1.0"
-dependencies = [
- "karch",
- "kdevice",
- "klog",
- "lazy_static",
- "limine",
- "spin 0.12.3",
-]
-
-[[package]]
-name = "klog"
-version = "0.1.0"
-dependencies = [
- "circular-buffer",
- "heapless",
- "log",
- "spin 0.12.3",
-]
-
-[[package]]
-name = "kmemory"
-version = "0.1.0"
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -141,3 +98,46 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "yaro_arch"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "spin 0.12.3",
+ "yaro_log",
+ "yaro_memory",
+]
+
+[[package]]
+name = "yaro_device"
+version = "0.1.0"
+dependencies = [
+ "yaro_arch",
+]
+
+[[package]]
+name = "yaro_kernel"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "limine",
+ "spin 0.12.3",
+ "yaro_arch",
+ "yaro_device",
+ "yaro_log",
+]
+
+[[package]]
+name = "yaro_log"
+version = "0.1.0"
+dependencies = [
+ "circular-buffer",
+ "heapless",
+ "log",
+ "spin 0.12.3",
+]
+
+[[package]]
+name = "yaro_memory"
+version = "0.1.0"

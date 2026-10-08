@@ -1,5 +1,5 @@
 use core::{mem, ptr::addr_of};
-use kmemory::address::{PhysicalAddress, VirtualAddress};
+use yaro_memory::address::{PhysicalAddress, VirtualAddress};
 
 use crate::x64::{
     gdt::{Descriptor, GlobalDescriptorTable},

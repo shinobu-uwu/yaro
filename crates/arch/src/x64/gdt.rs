@@ -2,7 +2,7 @@ use core::arch::asm;
 
 use crate::x64::{PrivilegeLevel, TablePointer, tss::TaskStateSegment};
 use bitflags::bitflags;
-use kmemory::address::VirtualAddress;
+use yaro_memory::address::VirtualAddress;
 
 #[derive(Debug, Clone)]
 pub struct GlobalDescriptorTable<const N: usize = 8> {

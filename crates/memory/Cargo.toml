@@ -1,10 +1,9 @@
 [package]
-name = "kdevice"
+name = "yaro_memory"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-karch = { path = "../karch/" }
 
 [lints]
 workspace = true

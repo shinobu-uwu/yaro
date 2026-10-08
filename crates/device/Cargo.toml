@@ -1,9 +1,10 @@
 [package]
-name = "kmemory"
+name = "yaro_device"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+yaro_arch = { path = "../arch/" }
 
 [lints]
 workspace = true

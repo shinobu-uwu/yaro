@@ -4,8 +4,8 @@
 
 This Cargo workspace contains a Rust 2021 freestanding kernel using `#![no_std]` and `#![no_main]`.
 
-- `kernel/src/main.rs`: kernel entry point, Limine requests, framebuffer demonstration, and panic/halt handlers. Add kernel modules under `kernel/src/`.
-- `kernel/build.rs`: selects `kernel/linker-scripts/linker-{arch}.ld` for the target architecture.
+- `crates/kernel/src/main.rs`: kernel entry point, Limine requests, framebuffer demonstration, and panic/halt handlers. Add kernel modules under `crates/kernel/src/`.
+- `crates/kernel/build.rs`: selects `crates/kernel/linker-scripts/linker-{arch}.ld` for the target architecture.
 - `flake.nix` and `flake.lock`: development toolchain, kernel build, bootable ISO packaging, and QEMU launcher.
 - `limine.conf`: boot menu and kernel path configuration.
 - `.cargo/config.toml`: standard-library build settings.
@@ -17,7 +17,7 @@ The configured Nix build targets `x86_64-unknown-none`; additional linker script
 Enable Nix's `flakes` and `nix-command` features, then run commands from the repository root:
 
 - `nix develop`: enter the Rust development environment; `.envrc` also supports direnv.
-- `nix build`: build the kernel ELF at `result/bin/kernel`.
+- `nix build`: build the kernel ELF at `result/bin/yaro_kernel`.
 - `nix build .#iso`: create the bootable image at `result/kernel.iso`.
 - `nix run`: build the debug kernel with Cargo's local `target/` cache, package a temporary ISO, and boot QEMU with UEFI firmware. Run from the repository root; extra QEMU flags follow `--`. `nix run .#dev` is an alias.
 - `cargo fmt --all -- --check`: check Rust formatting inside the development shell; use `cargo fmt --all` to apply formatting.

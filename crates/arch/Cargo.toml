@@ -1,12 +1,12 @@
 [package]
-name = "karch"
+name = "yaro_arch"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 bitflags.workspace = true
-klog = { path = "../klog/" }
-kmemory = { path = "../kmemory/" }
+yaro_log = { path = "../log/" }
+yaro_memory = { path = "../memory/" }
 spin.workspace = true
 
 [lints]

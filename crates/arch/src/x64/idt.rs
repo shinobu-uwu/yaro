@@ -1,6 +1,6 @@
 use core::{arch::asm, marker::PhantomData};
 
-use kmemory::address::VirtualAddress;
+use yaro_memory::address::VirtualAddress;
 
 use crate::x64::{TablePointer, gdt::SegmentSelector, registers::InterruptStackFrame};
 
@@ -92,6 +92,16 @@ impl InterruptDescriptorTable {
         }
     }
 
+    /// Loads this IDT on the current CPU.
+    ///
+    /// # Safety
+    /// Must execute at ring 0. The table must remain at a stable, mapped address
+    /// for as long as any CPU uses it, even after this borrow ends. Entries must
+    /// not be modified while a CPU can use them unless access is synchronized.
+    /// Every interrupt or exception that may occur must have a valid handler
+    /// with the correct ABI, a valid code selector in the loaded GDT, and valid
+    /// stack configuration, including any selected TSS IST stack. Handler code
+    /// and stacks must remain mapped with the required permissions.
     pub unsafe fn load(&self) {
         unsafe { asm!("lidt [{}]", in(reg) &self.pointer(), options(readonly, nostack)) }
     }

@@ -19,7 +19,7 @@ To build the raw kernel ELF executable:
 
 ```bash
 nix build
-# The compiled kernel will be available at ./result/bin/kernel
+# The compiled kernel will be available at ./result/bin/yaro_kernel
 ```
 
 To build a bootable ISO image containing the kernel and Limine:
@@ -50,7 +50,7 @@ nix develop
 This template is structured to separate the bootable ISO generation from the Rust crate building:
 
 - `flake.nix`: The main Nix configuration file that glues everything together (toolchains, crane builds, Limine, xorriso).
-- `kernel/`: The directory containing the Rust kernel codebase (`Cargo.toml` and `src/`).
+- `crates/kernel/`: The directory containing the Rust kernel codebase (`Cargo.toml` and `src/`).
 - `limine.conf`: The configuration file for the Limine bootloader, copied to the ISO during the `kernel-iso` derivation build phase.
 
 This project makes use of [cargo workspaces](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html), so it is recommended you split your

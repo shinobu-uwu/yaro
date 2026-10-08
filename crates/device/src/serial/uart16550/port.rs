@@ -1,4 +1,4 @@
-use karch::x64::port::{inb, outb};
+use yaro_arch::x64::port::{inb, outb};
 
 use crate::serial::uart16550::Backend;
 

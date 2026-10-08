@@ -1,12 +1,12 @@
 use core::fmt::Write;
 
-#[cfg(not(target_arch = "x86_64"))]
-use kdevice::serial::uart16550::MmioUart16550 as PlatformUart;
-#[cfg(target_arch = "x86_64")]
-use kdevice::serial::uart16550::PortUart16550 as PlatformUart;
-use klog::{Level, Sink};
 use lazy_static::lazy_static;
 use spin::Mutex;
+#[cfg(not(target_arch = "x86_64"))]
+use yaro_device::serial::uart16550::MmioUart16550 as PlatformUart;
+#[cfg(target_arch = "x86_64")]
+use yaro_device::serial::uart16550::PortUart16550 as PlatformUart;
+use yaro_log::{Level, Sink};
 
 lazy_static! {
     pub static ref UART: Mutex<PlatformUart> = Mutex::new(init_uart());
@@ -27,7 +27,7 @@ fn init_uart() -> PlatformUart {
 pub struct Serial;
 
 impl Sink for Serial {
-    fn write(&self, message: &klog::message::Message) {
+    fn write(&self, message: &yaro_log::message::Message) {
         let level = message.level;
         let level_color = match message.level {
             Level::Error => "160",

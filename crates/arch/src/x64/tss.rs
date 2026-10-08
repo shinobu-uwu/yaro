@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use kmemory::address::VirtualAddress;
+use yaro_memory::address::VirtualAddress;
 
 use crate::x64::gdt::SegmentSelector;
 

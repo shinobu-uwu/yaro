@@ -5,9 +5,9 @@ mod sink;
 
 use core::arch::asm;
 
-use klog::{error, info};
 use limine::BaseRevision;
-use limine::request::{RequestsEndMarker, RequestsStartMarker};
+use limine::request::{MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
+use yaro_log::{error, info};
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -30,11 +30,11 @@ unsafe extern "C" fn kmain() -> ! {
     // All limine requests must also be referenced in a called function, otherwise they may be
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
-    klog::init().expect("Failed to init logging");
-    klog::register_sink(&sink::serial::Serial).expect("Sink buffer is full");
+    yaro_log::init().expect("Failed to init logging");
+    yaro_log::register_sink(&sink::serial::Serial).expect("Sink buffer is full");
     // SAFETY: This is the boot CPU's only initialization call. Limine enters
     // with interrupts disabled; no secondary CPUs have been started.
-    unsafe { karch::init() };
+    unsafe { yaro_arch::init() };
 
     info!("Kernel started successfully!");
 

@@ -82,8 +82,8 @@
         kernel = craneLib.buildPackage (
           individualCrateArgs
           // {
-            pname = "kernel";
-            cargoExtraArgs = "-p kernel";
+            pname = "yaro_kernel";
+            cargoExtraArgs = "-p yaro_kernel";
           }
         );
 
@@ -109,7 +109,7 @@
             mkdir -p iso_root/boot/limine
             mkdir -p iso_root/EFI/BOOT
 
-            cp ${kernel}/bin/kernel iso_root/boot/kernel
+            cp ${kernel}/bin/yaro_kernel iso_root/boot/kernel
 
             cp ${./limine.conf} iso_root/boot/limine/limine.conf
 
@@ -154,13 +154,13 @@
                 fi
 
                 # Keep Cargo artifacts in the working tree across invocations.
-                cargo build --locked -p kernel --target x86_64-unknown-none --target-dir "$PWD/target"
+                cargo build --locked -p yaro_kernel --target x86_64-unknown-none --target-dir "$PWD/target"
 
                 run_dir=$(mktemp -d "$PWD/target/qemu-dev.XXXXXX")
                 trap 'rm -rf "$run_dir"' EXIT
                 iso_root="$run_dir/iso_root"
                 mkdir -p "$iso_root/boot/limine" "$iso_root/EFI/BOOT"
-                cp target/x86_64-unknown-none/debug/kernel "$iso_root/boot/kernel"
+                cp target/x86_64-unknown-none/debug/yaro_kernel "$iso_root/boot/kernel"
                 cp limine.conf "$iso_root/boot/limine/limine.conf"
                 cp ${limine}/limine-bios.sys ${limine}/limine-bios-cd.bin \
                   ${limine}/limine-uefi-cd.bin "$iso_root/boot/limine/"
