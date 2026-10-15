@@ -6,7 +6,9 @@ mod sink;
 use core::arch::asm;
 
 use limine::BaseRevision;
-use limine::request::{MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
+use limine::request::{
+    BootTimeRequest, DateAtBootRequest, HhdmRequest, RequestsEndMarker, RequestsStartMarker,
+};
 use yaro_log::{error, info};
 
 /// Sets the base revision to the latest revision supported by the crate.
@@ -16,6 +18,9 @@ use yaro_log::{error, info};
 // The .requests section allows limine to find the requests faster and more safely.
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
+
+#[unsafe(link_section = ".requests")]
+static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 
 /// Define the stand and end markers for Limine requests.
 #[used]
@@ -34,7 +39,13 @@ unsafe extern "C" fn kmain() -> ! {
     yaro_log::register_sink(&sink::serial::Serial).expect("Sink buffer is full");
     // SAFETY: This is the boot CPU's only initialization call. Limine enters
     // with interrupts disabled; no secondary CPUs have been started.
-    unsafe { yaro_arch::init() };
+    unsafe {
+        yaro_arch::init();
+    }
+
+    if let Some(r) = HHDM_REQUEST.get_response() {
+        yaro_memory::init(r.offset() as usize);
+    }
 
     info!("Kernel started successfully!");
 

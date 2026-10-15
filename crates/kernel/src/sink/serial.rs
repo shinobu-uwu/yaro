@@ -6,7 +6,7 @@ use spin::Mutex;
 use yaro_device::serial::uart16550::MmioUart16550 as PlatformUart;
 #[cfg(target_arch = "x86_64")]
 use yaro_device::serial::uart16550::PortUart16550 as PlatformUart;
-use yaro_log::{Level, Sink};
+use yaro_log::{Level, Record, Sink};
 
 lazy_static! {
     pub static ref UART: Mutex<PlatformUart> = Mutex::new(init_uart());
@@ -27,22 +27,22 @@ fn init_uart() -> PlatformUart {
 pub struct Serial;
 
 impl Sink for Serial {
-    fn write(&self, message: &yaro_log::message::Message) {
-        let level = message.level;
-        let level_color = match message.level {
+    fn write(&self, record: &Record<'_>) {
+        let level = record.level();
+        let level_color = match level {
             Level::Error => "160",
             Level::Warn => "172",
             Level::Info => "47",
             Level::Debug => "25",
             Level::Trace => "103",
         };
-        let module = message.module.unwrap_or_default();
-        let line = message.line.unwrap_or_default();
+        let module = record.module_path().unwrap_or_default();
+        let line = record.line().unwrap_or_default();
         let mut serial = UART.lock();
         write!(
             serial,
             "\x1b[38;5;{level_color}m{level}\x1b[0m [{module}:{line}]: {}\r\n",
-            message.text,
+            record.args(),
         )
         .expect("Failed to write to serial port");
     }

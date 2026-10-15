@@ -126,6 +126,7 @@ dependencies = [
  "yaro_arch",
  "yaro_device",
  "yaro_log",
+ "yaro_memory",
 ]
 
 [[package]]
@@ -141,3 +142,7 @@ dependencies = [
 [[package]]
 name = "yaro_memory"
 version = "0.1.0"
+dependencies = [
+ "spin 0.12.3",
+ "yaro_log",
+]

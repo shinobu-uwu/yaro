@@ -7,8 +7,7 @@ use core::fmt::Display;
 use circular_buffer::FixedCircularBuffer;
 use heapless::Vec;
 use log::LevelFilter;
-use log::Record;
-pub use log::{Level, debug, error, info, trace, warn};
+pub use log::{Level, Record, debug, error, info, trace, warn};
 use spin::Mutex;
 
 use crate::message::Message;
@@ -54,14 +53,13 @@ impl log::Log for Log {
     }
 
     fn log(&self, record: &Record) {
-        let message = record.into();
         let mut syslog = SYSLOG.lock();
 
         for sink in syslog.sinks.iter() {
-            sink.write(&message);
+            sink.write(record);
         }
 
-        syslog.push_message(message);
+        syslog.push_message(record.into());
     }
 
     fn flush(&self) {
@@ -87,6 +85,7 @@ impl Display for Error {
 }
 
 pub trait Sink: Sync {
-    /// Hook for when a message is written to SysLog
-    fn write(&self, message: &Message);
+    /// Consumes the full borrowed record synchronously before history is truncated.
+    /// The record and its formatting arguments must not be retained after this call.
+    fn write(&self, record: &Record<'_>);
 }
