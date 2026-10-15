@@ -1,5 +1,5 @@
 {
-  description = "Limine rust template for nix";
+  description = "Yaro kernel and development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -27,20 +27,7 @@
 
         inherit (pkgs) lib;
 
-        rustToolchain = pkgs.rust-bin.nightly.latest.default.override {
-          targets = ["x86_64-unknown-none"];
-          extensions = [
-            # includes already:
-            # rustc
-            # cargo
-            # rust-std
-            # rust-docs
-            # rustfmt-preview
-            # clippy-preview
-            "rust-analyzer"
-            "rust-src"
-          ];
-        };
+        rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
         src = lib.fileset.toSource {
           root = ./.;
@@ -65,9 +52,6 @@
             ++ lib.optionals pkgs.stdenv.isDarwin [
               pkgs.libiconv
             ];
-
-          CARGO_BUILD_TARGET = "x86_64-unknown-none";
-          RUSTFLAGS = "-C relocation-model=static";
         };
 
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -83,15 +67,43 @@
           individualCrateArgs
           // {
             pname = "yaro_kernel";
-            cargoExtraArgs = "-p yaro_kernel";
+            cargoExtraArgs = "--locked -p yaro_kernel";
           }
         );
 
         limine = pkgs.fetchFromGitHub {
           owner = "limine-bootloader";
           repo = "limine";
-          rev = "v10.8.3-binary";
+          # v10.8.3-binary; native setup fetches this same commit.
+          rev = lib.trim (builtins.readFile ./limine.rev);
           hash = "sha256-5dK7EFLrCd+JEZg3WTaHvY+osfDeUlKbXFv7oHAcDtE=";
+        };
+
+        limineInstaller = pkgs.stdenv.mkDerivation {
+          pname = "limine-installer";
+          version = "10.8.3";
+          src = limine;
+          dontConfigure = true;
+
+          buildPhase = ''
+            runHook preBuild
+            "$CC" -O2 -std=c99 limine.c -o limine
+            runHook postBuild
+          '';
+
+          installPhase = ''
+            runHook preInstall
+            install -Dm755 limine "$out/bin/limine"
+            runHook postInstall
+          '';
+        };
+
+        devTools = [pkgs.just pkgs.xorriso pkgs.qemu];
+        devEnv = {
+          LIMINE_DIR = "${limine}";
+          LIMINE = "${limineInstaller}/bin/limine";
+          OVMF_CODE = "${pkgs.OVMF.fd}/FV/OVMF_CODE.fd";
+          OVMF_VARS = "${pkgs.OVMF.fd}/FV/OVMF_VARS.fd";
         };
 
         iso = pkgs.stdenv.mkDerivation {
@@ -99,39 +111,25 @@
           version = "0.1.0";
 
           nativeBuildInputs = [
+            pkgs.just
+            pkgs.bash
             pkgs.xorriso
-            pkgs.limine
           ];
 
           dontUnpack = true;
 
           buildPhase = ''
-            mkdir -p iso_root/boot/limine
-            mkdir -p iso_root/EFI/BOOT
-
-            cp ${kernel}/bin/yaro_kernel iso_root/boot/kernel
-
-            cp ${./limine.conf} iso_root/boot/limine/limine.conf
-
-            cp ${limine}/limine-bios.sys iso_root/boot/limine/limine-bios.sys
-            cp ${limine}/limine-bios-cd.bin iso_root/boot/limine/limine-bios-cd.bin
-            cp ${limine}/limine-uefi-cd.bin iso_root/boot/limine/limine-uefi-cd.bin
-
-            cp ${limine}/BOOTX64.EFI iso_root/EFI/BOOT/BOOTX64.EFI
-            cp ${limine}/BOOTIA32.EFI iso_root/EFI/BOOT/BOOTIA32.EFI
+            runHook preBuild
+            just --justfile ${./justfile} --working-directory "$PWD" package-iso \
+              ${kernel}/bin/yaro_kernel ${limine} ${./limine.conf} kernel.iso \
+              ${limineInstaller}/bin/limine
+            runHook postBuild
           '';
 
           installPhase = ''
-            mkdir -p $out
-
-
-            xorriso -as mkisofs -b boot/limine/limine-bios-cd.bin \
-            -no-emul-boot -boot-load-size 4 -boot-info-table \
-            --efi-boot boot/limine/limine-uefi-cd.bin \
-            -efi-boot-part --efi-boot-image --protective-msdos-label \
-            iso_root -o $out/kernel.iso
-
-            ${pkgs.limine}/bin/limine bios-install $out/kernel.iso
+            runHook preInstall
+            install -Dm644 kernel.iso "$out/kernel.iso"
+            runHook postInstall
           '';
         };
       in {
@@ -146,51 +144,26 @@
             type = "app";
             program = lib.getExe (pkgs.writeShellApplication {
               name = "yaro-dev";
-              runtimeInputs = [rustToolchain pkgs.stdenv.cc pkgs.coreutils pkgs.xorriso pkgs.limine pkgs.qemu];
+              runtimeInputs = [rustToolchain pkgs.stdenv.cc pkgs.coreutils pkgs.bash] ++ devTools;
               text = ''
-                if [[ ! -f crates/kernel/Cargo.toml || ! -f limine.conf ]]; then
+                if [[ ! -f crates/kernel/Cargo.toml || ! -f justfile ]]; then
                   echo "Run nix run from the repository root." >&2
                   exit 1
                 fi
 
-                # Keep Cargo artifacts in the working tree across invocations.
-                cargo build --locked -p yaro_kernel --target x86_64-unknown-none --target-dir "$PWD/target"
-
-                run_dir=$(mktemp -d "$PWD/target/qemu-dev.XXXXXX")
-                trap 'rm -rf "$run_dir"' EXIT
-                iso_root="$run_dir/iso_root"
-                mkdir -p "$iso_root/boot/limine" "$iso_root/EFI/BOOT"
-                cp target/x86_64-unknown-none/debug/yaro_kernel "$iso_root/boot/kernel"
-                cp limine.conf "$iso_root/boot/limine/limine.conf"
-                cp ${limine}/limine-bios.sys ${limine}/limine-bios-cd.bin \
-                  ${limine}/limine-uefi-cd.bin "$iso_root/boot/limine/"
-                cp ${limine}/BOOTX64.EFI ${limine}/BOOTIA32.EFI "$iso_root/EFI/BOOT/"
-
-                xorriso -as mkisofs -b boot/limine/limine-bios-cd.bin \
-                  -no-emul-boot -boot-load-size 4 -boot-info-table \
-                  --efi-boot boot/limine/limine-uefi-cd.bin \
-                  -efi-boot-part --efi-boot-image --protective-msdos-label \
-                  "$iso_root" -o "$run_dir/kernel.iso"
-                limine bios-install "$run_dir/kernel.iso"
-
-                cp ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd "$run_dir/OVMF_VARS.fd"
-                chmod u+w "$run_dir/OVMF_VARS.fd"
-                qemu-system-x86_64 \
-                  -M q35 \
-                  -gdb tcp:127.0.0.1:1234 \
-                  -serial stdio \
-                  -drive if=pflash,unit=0,format=raw,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd,readonly=on \
-                  -drive "if=pflash,unit=1,format=raw,file=$run_dir/OVMF_VARS.fd" \
-                  -cdrom "$run_dir/kernel.iso" "$@"
+                export LIMINE_DIR=${devEnv.LIMINE_DIR}
+                export LIMINE=${devEnv.LIMINE}
+                export OVMF_CODE="''${OVMF_CODE:-${devEnv.OVMF_CODE}}"
+                export OVMF_VARS="''${OVMF_VARS:-${devEnv.OVMF_VARS}}"
+                exec just run "$@"
               '';
             });
           };
         };
-        devShells.default = craneLib.devShell {
-          packages = [
-            pkgs.gdb
-          ];
-        };
+        devShells.default = craneLib.devShell (devEnv
+          // {
+            packages = [pkgs.gdb] ++ devTools;
+          });
       }
     );
 }
