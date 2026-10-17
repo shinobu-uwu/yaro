@@ -14,6 +14,19 @@ pub struct PhysicalAddress(usize);
 pub struct VirtualAddress(usize);
 
 impl PhysicalAddress {
+    /// Returns whether the address is a multiple of `alignment`.
+    ///
+    /// # Panics
+    /// Panics if `alignment` is not a nonzero power of two.
+    #[inline]
+    pub const fn is_aligned(self, alignment: usize) -> bool {
+        assert!(
+            alignment.is_power_of_two(),
+            "Alignment must be a nonzero power of two"
+        );
+        self.0 & (alignment - 1) == 0
+    }
+
     /// Adds a byte offset, returning `None` on integer overflow.
     #[inline]
     pub const fn checked_add(self, offset: usize) -> Option<Self> {
@@ -82,6 +95,19 @@ impl PhysicalAddress {
 }
 
 impl VirtualAddress {
+    /// Returns whether the address is a multiple of `alignment`.
+    ///
+    /// # Panics
+    /// Panics if `alignment` is not a nonzero power of two.
+    #[inline]
+    pub const fn is_aligned(self, alignment: usize) -> bool {
+        assert!(
+            alignment.is_power_of_two(),
+            "Alignment must be a nonzero power of two"
+        );
+        self.0 & (alignment - 1) == 0
+    }
+
     /// Adds a byte offset, returning `None` on integer overflow.
     #[inline]
     pub const fn checked_add(self, offset: usize) -> Option<Self> {

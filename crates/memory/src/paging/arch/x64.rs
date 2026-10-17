@@ -1,14 +1,13 @@
 use core::arch::asm;
 
+use bit_field::BitField;
+
 use crate::{
     address::{PhysicalAddress, VirtualAddress},
-    paging::{self, Arch, Entry},
+    paging::{Arch, Entry},
 };
 
 const PAGE_TABLE_ENTRIES: usize = 512;
-const CR3_ADDRESS_MASK: usize = 0x000f_ffff_ffff_f000;
-const CANONICAL_ADDRESS_MASK: u64 = 0xFFFF_8000_0000_0000;
-const ENTRY_ADDRESS_MASK: u64 = 0x000f_ffff_ffff_f000;
 
 const _: () = {
     assert!(size_of::<X86Entry>() == 8);
@@ -41,7 +40,7 @@ impl Arch for X86Arch {
             asm!("mov {}, cr3", out(reg) addr);
         }
 
-        PhysicalAddress::new(addr & CR3_ADDRESS_MASK)
+        PhysicalAddress::new(addr.get_bits(12..52) << 12)
     }
 
     #[inline(always)]
@@ -51,10 +50,10 @@ impl Arch for X86Arch {
 
     #[inline(always)]
     fn is_address_valid(address: VirtualAddress) -> bool {
-        // On x64 addresses must be canonical
-        let masked = address.as_u64() & CANONICAL_ADDRESS_MASK;
-
-        masked == CANONICAL_ADDRESS_MASK || masked == 0
+        // Four-level paging requires bits 48..64 to sign-extend bit 47.
+        let address = address.as_u64();
+        let upper = if address.get_bit(47) { 0xffff } else { 0 };
+        address.get_bits(48..64) == upper
     }
 
     fn page_size(level: usize) -> usize {
@@ -68,21 +67,22 @@ impl Arch for X86Arch {
     }
 
     fn table_index(address: VirtualAddress, level: usize) -> usize {
-        (address.as_u64() >> (12 + 9 * level)) as usize & 0x1ff
+        let start = 12 + 9 * level;
+        address.as_u64().get_bits(start..start + 9) as usize
     }
 }
 
 impl Entry for X86Entry {
     fn is_present(&self) -> bool {
-        self.0 & 1 != 0
+        self.0.get_bit(0)
     }
 
     fn address(&self) -> PhysicalAddress {
-        PhysicalAddress::new((self.0 & ENTRY_ADDRESS_MASK) as usize)
+        PhysicalAddress::new((self.0.get_bits(12..52) << 12) as usize)
     }
 
     fn is_leaf(&self, level: usize) -> bool {
-        level == 0 || (matches!(level, 1 | 2) && self.0 & (1 << 7) != 0)
+        level == 0 || (matches!(level, 1 | 2) && self.0.get_bit(7))
     }
 }
 

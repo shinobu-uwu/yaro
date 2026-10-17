@@ -7,6 +7,7 @@ pub struct MemoryRegion {
 }
 
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MemoryType {
     /// The memory region is freely usable.
     Usable,

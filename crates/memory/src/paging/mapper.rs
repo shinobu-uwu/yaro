@@ -1,3 +1,5 @@
+use bit_field::BitField;
+
 use crate::{
     address::{PhysicalAddress, VirtualAddress},
     paging::{Arch, Entry, PageTable},
@@ -40,7 +42,12 @@ impl<A: Arch> PageMapper<A> {
 
             if entry.is_leaf(table.level) {
                 let page_size = A::page_size(table.level);
-                let offset = address.as_u64() as usize & (page_size - 1);
+                let offset_bits = page_size.trailing_zeros() as usize;
+                let offset = if offset_bits == 0 {
+                    0
+                } else {
+                    address.as_u64().get_bits(0..offset_bits) as usize
+                };
 
                 // Align to the leaf's page size, removing flag bits such
                 // as the x86 PAT bit in large-page entries.

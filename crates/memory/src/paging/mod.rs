@@ -35,7 +35,8 @@ impl<A: Arch> PageTable<A> {
     }
 
     pub unsafe fn next_table(&self, index: usize) -> Option<PageTable<A>> {
-        assert!(index < A::PAGE_TABLE_ENTRIES);
+        // entry() checks the index before reading page-table memory.
+        debug_assert!(index < A::PAGE_TABLE_ENTRIES);
 
         let child_level = self.level.checked_sub(1)?;
         let entry = unsafe { self.entry(index) }?;

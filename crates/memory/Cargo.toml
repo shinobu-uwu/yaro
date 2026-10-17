@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bit_field.workspace = true
+bitflags.workspace = true
 spin.workspace = true
 yaro_log = { path = "../log/" }
 

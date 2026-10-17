@@ -116,7 +116,8 @@ impl<const N: usize> GlobalDescriptorTable<N> {
     pub const fn push_back(&mut self, descriptor: Descriptor) -> SegmentSelector {
         let selector_index = match descriptor {
             Descriptor::Segment(value) => {
-                assert!(self.len <= self.entries.len().saturating_sub(1));
+                // push() also checks capacity through array indexing.
+                debug_assert!(self.len <= self.entries.len().saturating_sub(1));
                 self.push(value)
             }
             Descriptor::SystemSegment(low, high) => {
