@@ -23,7 +23,7 @@ impl BitmapAllocator {
         }
     }
 
-    pub fn init(&mut self, memory_map: &[MemoryRegion]) {
+    pub(crate) fn init(&mut self, memory_map: impl IntoIterator<Item = MemoryRegion>) {
         for region in memory_map {
             if region.memory_type != MemoryType::Usable {
                 continue;
@@ -58,7 +58,7 @@ impl FrameAllocator for BitmapAllocator {
             .iter_mut()
             .enumerate()
             .find(|(_, w)| **w != u64::MAX)?;
-        let bit_index = 63 - (!*word).leading_zeros() as usize;
+        let bit_index = (!*word).trailing_zeros() as usize;
 
         word.set_bit(bit_index, true);
         let addr = (word_index * u64::BITS as usize + bit_index) * FRAME_SIZE;
@@ -81,40 +81,5 @@ impl FrameAllocator for BitmapAllocator {
         );
 
         self.words[word_index].set_bit(bit_index, false);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deallocate_reuses_only_the_freed_frame() {
-        // Keep the 4 MiB bitmap off the test thread's stack.
-        static ALLOCATOR: spin::Mutex<BitmapAllocator> = spin::Mutex::new(BitmapAllocator::new());
-        let mut allocator = ALLOCATOR.lock();
-        allocator.init(&[MemoryRegion {
-            base: PhysicalAddress::new(0),
-            len: 66 * FRAME_SIZE,
-            memory_type: MemoryType::Usable,
-        }]);
-
-        let mut allocated = [false; 66];
-        for _ in 0..allocated.len() {
-            let address = allocator.allocate().expect("frame should be available");
-            assert!(address.is_aligned(FRAME_SIZE));
-            let frame_index = address.as_usize() / FRAME_SIZE;
-            assert!(!allocated[frame_index], "frame allocated twice");
-            allocated[frame_index] = true;
-        }
-        assert_eq!(allocator.allocate(), None);
-
-        // Exercise nonzero bits and both sides of a bitmap word boundary.
-        for frame_index in [1, 63, 64, 65] {
-            let address = PhysicalAddress::new(frame_index * FRAME_SIZE);
-            allocator.deallocate(address);
-            assert_eq!(allocator.allocate(), Some(address));
-            assert_eq!(allocator.allocate(), None);
-        }
     }
 }

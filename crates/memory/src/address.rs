@@ -182,10 +182,38 @@ impl VirtualAddress {
     }
 }
 
+impl From<u64> for PhysicalAddress {
+    #[inline]
+    fn from(address: u64) -> Self {
+        Self::new(address as usize)
+    }
+}
+
+impl From<usize> for PhysicalAddress {
+    #[inline]
+    fn from(address: usize) -> Self {
+        Self::new(address)
+    }
+}
+
+impl From<u64> for VirtualAddress {
+    #[inline]
+    fn from(address: u64) -> Self {
+        Self::new(address as usize)
+    }
+}
+
+impl From<usize> for VirtualAddress {
+    #[inline]
+    fn from(address: usize) -> Self {
+        Self::new(address)
+    }
+}
+
 impl Debug for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("PhysAddr")
-            .field(&format_args!("{:x}", self.0))
+            .field(&format_args!("0x{:x}", self.0))
             .finish()
     }
 }
@@ -193,7 +221,7 @@ impl Debug for PhysicalAddress {
 impl Debug for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("VirtAddr")
-            .field(&format_args!("{:x}", self.0))
+            .field(&format_args!("0x{:x}", self.0))
             .finish()
     }
 }

@@ -1,15 +1,19 @@
 #![no_std]
 #![no_main]
 
+mod allocator;
 mod sink;
+
+extern crate alloc;
 
 use core::arch::asm;
 
+use alloc::boxed::Box;
 use limine::BaseRevision;
-use limine::request::{
-    BootTimeRequest, DateAtBootRequest, HhdmRequest, RequestsEndMarker, RequestsStartMarker,
-};
+use limine::memory_map::EntryType;
+use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use yaro_log::{error, info};
+use yaro_memory::memory_map::{MemoryRegion, MemoryType};
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -21,6 +25,9 @@ static BASE_REVISION: BaseRevision = BaseRevision::new();
 
 #[unsafe(link_section = ".requests")]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
+
+#[unsafe(link_section = ".requests")]
+static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
 /// Define the stand and end markers for Limine requests.
 #[used]
@@ -43,13 +50,40 @@ unsafe extern "C" fn kmain() -> ! {
         yaro_arch::init();
     }
 
-    if let Some(r) = HHDM_REQUEST.get_response() {
-        yaro_memory::init(r.offset() as usize);
-    }
-
-    info!("Kernel started successfully!");
+    let hhdm_offset = HHDM_REQUEST
+        .get_response()
+        .map(|r| r.offset() as usize)
+        .expect("HHDM request failed");
+    let memory_map = MEMORY_MAP_REQUEST
+        .get_response()
+        .map(|r| r.entries())
+        .expect("Memory Map request failed");
+    let regions = memory_map.iter().map(|entry| MemoryRegion {
+        base: entry.base.into(),
+        len: entry.length as usize,
+        memory_type: convert_memory_type(entry.entry_type),
+    });
+    yaro_memory::init(hhdm_offset, regions);
+    allocator::init();
+    let boxed = Box::new(42);
+    info!("Boxed: {:#?}", boxed);
 
     hcf();
+}
+
+fn convert_memory_type(entry_type: EntryType) -> MemoryType {
+    match entry_type {
+        EntryType::USABLE => MemoryType::Usable,
+        EntryType::RESERVED => MemoryType::Reserved,
+        EntryType::ACPI_RECLAIMABLE => MemoryType::AcpiReclaimable,
+        EntryType::ACPI_NVS => MemoryType::AcpiNvs,
+        EntryType::BAD_MEMORY => MemoryType::Bad,
+        EntryType::BOOTLOADER_RECLAIMABLE => MemoryType::BootloaderReclaimable,
+        EntryType::EXECUTABLE_AND_MODULES => MemoryType::Executable,
+        EntryType::FRAMEBUFFER => MemoryType::FrameBuffer,
+        // Unknown types must never be treated as usable memory.
+        _ => MemoryType::Reserved,
+    }
 }
 
 #[panic_handler]

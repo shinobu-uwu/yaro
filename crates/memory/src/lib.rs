@@ -1,12 +1,11 @@
 #![no_std]
 
-use spin::Once;
-use yaro_log::info;
+use spin::{Mutex, Once};
 
 use crate::{
-    address::PhysicalAddress,
     allocator::physical::bitmap::BitmapAllocator,
-    paging::{arch::x64::X86Arch, mapper::PageMapper},
+    memory_map::MemoryRegion,
+    paging::{Arch, CurrentArch},
 };
 
 pub mod address;
@@ -14,22 +13,14 @@ pub mod allocator;
 pub mod memory_map;
 pub mod paging;
 
+pub const PAGE_SIZE: usize = CurrentArch::PAGE_SIZE;
+
 static HHDM_OFFSET: Once<usize> = Once::new();
-static ALLOCATOR: BitmapAllocator = BitmapAllocator::new();
+pub static FRAME_ALLOCATOR: Mutex<BitmapAllocator> = Mutex::new(BitmapAllocator::new());
 
-pub fn init(hhdm_offset: usize) {
+pub fn init(hhdm_offset: usize, memory_map: impl IntoIterator<Item = MemoryRegion>) {
     HHDM_OFFSET.call_once(|| hhdm_offset);
-    let mapper: PageMapper<X86Arch> = PageMapper::new();
-    let phys_addr = PhysicalAddress::new(0x40001);
-    let virt_addr = phys_addr.to_hhdm();
-
-    let translated = unsafe { mapper.translate(virt_addr) };
-
-    info!("Phys: {:#?}", phys_addr);
-    info!("Virt: {:#?}", virt_addr);
-    info!("Translated: {:#?}", translated);
-
-    info!("{:#?}", ALLOCATOR);
+    FRAME_ALLOCATOR.lock().init(memory_map);
 }
 
 pub fn hhdm_offset() -> usize {
