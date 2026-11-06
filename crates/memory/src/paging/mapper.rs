@@ -106,6 +106,19 @@ impl<A: Arch> PageMapper<A> {
         Ok(PageFlush::new(virt))
     }
 
+    /// Returns whether the address belongs to a present mapping, including huge pages.
+    /// The address need not be page-aligned. Invalid addresses return false.
+    /// This checks presence, not access permissions or cached TLB translations.
+    ///
+    /// # Safety
+    /// Memory initialization must be complete. All traversed page tables
+    /// must remain valid and readable through the HHDM, with concurrent
+    /// modifications and reclamation appropriately synchronized.
+    pub unsafe fn is_mapped(&self, address: VirtualAddress) -> bool {
+        // SAFETY: The caller guarantees readable tables and synchronized access.
+        unsafe { self.find_leaf(address) }.is_some()
+    }
+
     /// Translates a virtual address using this mapper's page tables.
     ///
     /// # Safety
@@ -113,37 +126,80 @@ impl<A: Arch> PageMapper<A> {
     /// must remain valid and readable through the HHDM, with concurrent
     /// modifications and reclamation appropriately synchronized.
     pub unsafe fn translate(&self, address: VirtualAddress) -> Option<PhysicalAddress> {
+        // SAFETY: The caller guarantees readable tables and synchronized access.
+        let (table, _, entry) = unsafe { self.find_leaf(address) }?;
+        let page_size = A::page_size(table.level);
+        let offset_bits = page_size.trailing_zeros() as usize;
+        let offset = if offset_bits == 0 {
+            0
+        } else {
+            address.as_u64().get_bits(0..offset_bits) as usize
+        };
+
+        // Remove level-specific attribute bits, such as PAT in huge-page entries.
+        let base = entry.address().align_down(page_size);
+        base.checked_add(offset)
+    }
+
+    /// Removes one level-0 page mapping and returns its frame and pending invalidation.
+    /// Does not free the frame or intermediate tables. Huge pages are rejected.
+    ///
+    /// # Safety
+    /// Memory initialization must be complete. The hierarchy must remain valid
+    /// and accessible through the HHDM, with exclusive software access and
+    /// writable table memory. Removing this mapping must not invalidate memory
+    /// needed by this operation or its caller. Before reusing or freeing the
+    /// frame, the caller must invalidate stale translations on every CPU using
+    /// this address space and account for any other mappings of the same frame.
+    pub unsafe fn unmap(
+        &mut self,
+        address: VirtualAddress,
+    ) -> Result<(PhysicalAddress, PageFlush<A>), UnmapError> {
+        if !A::is_address_valid(address) {
+            return Err(UnmapError::InvalidVirtualAddress);
+        }
+
+        if !address.is_aligned(A::page_size(0)) {
+            return Err(UnmapError::UnalignedVirtualAddress);
+        }
+
+        // SAFETY: The caller guarantees valid tables and exclusive software access.
+        let (mut table, index, entry) =
+            unsafe { self.find_leaf(address) }.ok_or(UnmapError::PageNotMapped)?;
+
+        if table.level != 0 {
+            return Err(UnmapError::ParentEntryHugePage);
+        }
+
+        let frame = entry.address().align_down(A::page_size(0));
+        // SAFETY: The caller guarantees writable tables and that removing this
+        // mapping is safe. empty() clears the leaf; invalidation is deferred.
+        unsafe { table.set_entry(index, A::Entry::empty()) };
+
+        Ok((frame, PageFlush::new(address)))
+    }
+
+    /// Finds a present leaf, including huge pages, and its containing table and index.
+    /// Returns None for an invalid address or an absent entry at any level.
+    ///
+    /// # Safety
+    /// Memory initialization must be complete. Traversed tables must remain valid
+    /// and readable through the HHDM, with access appropriately synchronized.
+    unsafe fn find_leaf(&self, address: VirtualAddress) -> Option<(PageTable<A>, usize, A::Entry)> {
         if !A::is_address_valid(address) {
             return None;
         }
 
         let mut table = self.root.clone();
-
         loop {
             let index = table.index_of(address);
-
-            // SAFETY: The caller guarantees valid, readable page tables
-            // and appropriate synchronization throughout the walk.
+            // SAFETY: The caller guarantees readable tables and synchronized access.
             let entry = unsafe { table.entry(index) };
-
             if !entry.is_present() {
                 return None;
             }
-
             if entry.is_leaf(table.level) {
-                let page_size = A::page_size(table.level);
-                let offset_bits = page_size.trailing_zeros() as usize;
-                let offset = if offset_bits == 0 {
-                    0
-                } else {
-                    address.as_u64().get_bits(0..offset_bits) as usize
-                };
-
-                // Align to the leaf's page size, removing flag bits such
-                // as the x86 PAT bit in large-page entries.
-                let base = entry.address().align_down(page_size);
-
-                return base.checked_add(offset);
+                return Some((table, index, entry));
             }
 
             let child_level = table.level.checked_sub(1)?;
@@ -184,3 +240,28 @@ impl Display for MapToError {
 }
 
 impl Error for MapToError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnmapError {
+    /// The address is invalid for this architecture.
+    InvalidVirtualAddress,
+    /// The address is not aligned to a level-0 page boundary.
+    UnalignedVirtualAddress,
+    /// No present mapping exists for this address.
+    PageNotMapped,
+    /// The address belongs to a huge page; no entries were changed.
+    ParentEntryHugePage,
+}
+
+impl Display for UnmapError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidVirtualAddress => write!(f, "Invalid virtual address"),
+            Self::UnalignedVirtualAddress => write!(f, "Unaligned virtual address"),
+            Self::PageNotMapped => write!(f, "Page is not mapped"),
+            Self::ParentEntryHugePage => write!(f, "Parent is huge page"),
+        }
+    }
+}
+
+impl Error for UnmapError {}

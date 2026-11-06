@@ -92,6 +92,16 @@ impl InterruptDescriptorTable {
         }
     }
 
+    /// Returns an external interrupt entry by its CPU vector number.
+    /// Panics for exception vectors below 32.
+    pub(crate) fn interrupt_entry(&mut self, vector: u8) -> &mut Entry<Handler> {
+        assert!(
+            vector >= 32,
+            "external interrupt vector must be at least 32"
+        );
+        &mut self.interrupts[usize::from(vector) - 32]
+    }
+
     /// Loads this IDT on the current CPU.
     ///
     /// # Safety

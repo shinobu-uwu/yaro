@@ -7,6 +7,7 @@ edition.workspace = true
 lazy_static.workspace = true
 limine = "0.5.0"
 linked_list_allocator = "0.10.6"
+noto-sans-mono-bitmap.workspace = true
 spin.workspace = true
 yaro_arch = { path = "../arch" }
 yaro_device = { path = "../device" }

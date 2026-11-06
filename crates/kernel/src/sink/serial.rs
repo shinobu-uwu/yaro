@@ -2,8 +2,10 @@ use core::fmt::Write;
 
 use lazy_static::lazy_static;
 use spin::Mutex;
+
 #[cfg(not(target_arch = "x86_64"))]
 use yaro_device::serial::uart16550::MmioUart16550 as PlatformUart;
+
 #[cfg(target_arch = "x86_64")]
 use yaro_device::serial::uart16550::PortUart16550 as PlatformUart;
 use yaro_log::{Level, Record, Sink};

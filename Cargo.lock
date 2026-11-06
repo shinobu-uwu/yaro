@@ -88,6 +88,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "noto-sans-mono-bitmap"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1064d564ae026ae123bf5d607318b42a5b31d70a3c48e6ea7ee44cce4cdb095e"
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -128,6 +134,7 @@ name = "yaro_arch"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "lazy_static",
  "spin 0.12.3",
  "yaro_log",
  "yaro_memory",
@@ -147,6 +154,7 @@ dependencies = [
  "lazy_static",
  "limine",
  "linked_list_allocator",
+ "noto-sans-mono-bitmap",
  "spin 0.12.3",
  "yaro_arch",
  "yaro_device",

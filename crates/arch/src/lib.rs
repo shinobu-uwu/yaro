@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 
+pub mod device;
 #[cfg(target_arch = "x86_64")]
 pub mod x64;
 

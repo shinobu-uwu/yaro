@@ -250,6 +250,22 @@ impl Add<usize> for VirtualAddress {
     }
 }
 
+impl Add<u32> for VirtualAddress {
+    type Output = Self;
+
+    fn add(self, offset: u32) -> Self {
+        Self(self.0 + offset as usize)
+    }
+}
+
+impl Add<u64> for VirtualAddress {
+    type Output = Self;
+
+    fn add(self, offset: u64) -> Self {
+        Self(self.0 + offset as usize)
+    }
+}
+
 impl Add for VirtualAddress {
     type Output = Self;
 

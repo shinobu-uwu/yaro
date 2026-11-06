@@ -5,9 +5,10 @@ edition.workspace = true
 
 [dependencies]
 bitflags.workspace = true
+lazy_static.workspace = true
+spin.workspace = true
 yaro_log = { path = "../log/" }
 yaro_memory = { path = "../memory/" }
-spin.workspace = true
 
 [lints]
 workspace = true

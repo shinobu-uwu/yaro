@@ -7,13 +7,16 @@ mod sink;
 extern crate alloc;
 
 use core::arch::asm;
+use core::arch::x86_64::_rdtsc;
+use core::time::Duration;
 
-use alloc::boxed::Box;
 use limine::BaseRevision;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
-use yaro_log::{error, info};
+use yaro_log::{error, info, warn};
 use yaro_memory::memory_map::{MemoryRegion, MemoryType};
+use yaro_memory::paging::CurrentArch;
+use yaro_memory::paging::mapper::PageMapper;
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -44,6 +47,14 @@ unsafe extern "C" fn kmain() -> ! {
     assert!(BASE_REVISION.is_supported());
     yaro_log::init().expect("Failed to init logging");
     yaro_log::register_sink(&sink::serial::Serial).expect("Sink buffer is full");
+    // SAFETY: Limine's mappings remain active and this sink is the only owner
+    // of the framebuffer. Initialization precedes interrupts and other CPUs.
+    match unsafe { sink::framebuffer::init() } {
+        Ok(()) => {
+            yaro_log::register_sink(&sink::framebuffer::FRAMEBUFFER).expect("Sink buffer is full");
+        }
+        Err(reason) => warn!("Framebuffer logging unavailable: {reason}"),
+    }
     // SAFETY: This is the boot CPU's only initialization call. Limine enters
     // with interrupts disabled; no secondary CPUs have been started.
     unsafe {
@@ -65,8 +76,14 @@ unsafe extern "C" fn kmain() -> ! {
     });
     yaro_memory::init(hhdm_offset, regions);
     allocator::init();
-    let boxed = Box::new(42);
-    info!("Boxed: {:#?}", boxed);
+
+    let mut mapper: PageMapper<CurrentArch> = PageMapper::new();
+
+    // SAFETY: Early CPU setup installed the IDT; memory is initialized, local
+    // interrupts remain disabled, and no secondary CPUs have been started.
+    unsafe { yaro_arch::device::init(&mut mapper) };
+
+    info!("Kernel started!");
 
     hcf();
 }
@@ -93,13 +110,19 @@ fn rust_panic(info: &core::panic::PanicInfo) -> ! {
 }
 fn hcf() -> ! {
     loop {
-        unsafe {
-            #[cfg(target_arch = "x86_64")]
-            asm!("hlt");
-            #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
-            asm!("wfi");
-            #[cfg(target_arch = "loongarch64")]
-            asm!("idle 0");
-        }
+        halt_once();
+    }
+}
+
+fn halt_once() {
+    // SAFETY: Executed at kernel privilege with a valid stack. In the normal
+    // idle loop interrupts are enabled and the timer wakes this CPU.
+    unsafe {
+        #[cfg(target_arch = "x86_64")]
+        asm!("hlt");
+        #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
+        asm!("wfi");
+        #[cfg(target_arch = "loongarch64")]
+        asm!("idle 0");
     }
 }

@@ -106,6 +106,17 @@ Crane builds the release kernel and caches dependency artifacts:
 | `nix build` | `result/bin/yaro_kernel` |
 | `nix build .#iso` | `result/kernel.iso` |
 
+Write the bootable ISO directly to a USB drive on Linux with:
+
+```bash
+nix run .#usb -- /dev/sdX
+```
+
+Replace `/dev/sdX` with the whole USB device (for example `/dev/sdb`), not a
+partition such as `/dev/sdb1`. The command checks that the device is unmounted,
+then asks you to type its resolved device path before overwriting it. It uses
+`sudo` for the write when needed.
+
 The Nix ISO package uses the same `just package-iso` recipe as native builds,
 with the kernel ELF supplied by Crane.
 

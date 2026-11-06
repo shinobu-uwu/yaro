@@ -7,10 +7,10 @@ use yaro_memory::{
 };
 
 pub const HEAP_START: VirtualAddress = VirtualAddress::new(0xffff_ff7f_8000_0000);
-pub const HEAP_SIZE: usize = 10 * 1024 * 1024; // 100 KiB
+pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 
 #[global_allocator]
-// TODO: implement slab allocator ourselves
+// TODO: implement slab allocator
 static HEAP: LockedHeap = LockedHeap::empty();
 
 pub fn init() {
@@ -28,7 +28,7 @@ pub fn init() {
                 .map_to(
                     frame,
                     base,
-                    PageFlags::new().write(true).user(true).execute(false),
+                    PageFlags::new().write(true).user(false).execute(false),
                     &mut *frame_allocator,
                 )
                 .expect("Failed to map heap addresses")

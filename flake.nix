@@ -140,6 +140,44 @@
         };
         apps = rec {
           default = dev;
+          usb = {
+            type = "app";
+            program = lib.getExe (pkgs.writeShellApplication {
+              name = "yaro-usb";
+              runtimeInputs = [pkgs.coreutils pkgs.gnugrep pkgs.sudo pkgs.util-linux];
+              text = ''
+                if [[ $# -ne 1 ]]; then
+                  echo "Usage: nix run .#usb -- /dev/<device>" >&2
+                  exit 2
+                fi
+
+                device="$1"
+                if [[ ! -b "$device" ]]; then
+                  echo "Not a block device: $device" >&2
+                  exit 1
+                fi
+                device=$(readlink -f -- "$device")
+
+                if lsblk -nrpo MOUNTPOINT "$device" | grep -q '[^[:space:]]'; then
+                  echo "Unmount all partitions on $device before writing the image." >&2
+                  exit 1
+                fi
+
+                echo "This will erase all data on $device."
+                read -r -p "Type the device path to continue: " confirmation
+                if [[ "$confirmation" != "$device" ]]; then
+                  echo "Confirmation did not match; no data was written." >&2
+                  exit 1
+                fi
+
+                if [[ $EUID -eq 0 ]]; then
+                  dd if=${iso}/kernel.iso of="$device" bs=4M status=progress conv=fsync
+                else
+                  sudo dd if=${iso}/kernel.iso of="$device" bs=4M status=progress conv=fsync
+                fi
+              '';
+            });
+          };
           dev = {
             type = "app";
             program = lib.getExe (pkgs.writeShellApplication {

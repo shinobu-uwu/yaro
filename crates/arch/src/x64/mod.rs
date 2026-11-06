@@ -2,13 +2,16 @@ use core::{mem, ptr::addr_of};
 use yaro_memory::address::{PhysicalAddress, VirtualAddress};
 
 use crate::x64::{
+    device::apic::{SPURIOUS_VECTOR_INDEX, TIMER_VECTOR},
     gdt::{Descriptor, GlobalDescriptorTable},
     idt::InterruptDescriptorTable,
+    registers::InterruptStackFrame,
     tss::TaskStateSegment,
 };
 
 mod exceptions;
 
+pub mod device;
 pub mod gdt;
 pub mod idt;
 pub mod port;
@@ -110,6 +113,10 @@ pub unsafe fn init() {
         IDT.double_fault
             .set_handler(exceptions::double_fault)
             .set_stack_index(Some(0));
+        IDT.interrupt_entry(SPURIOUS_VECTOR_INDEX)
+            .set_handler(spurious_interrupt);
+        IDT.interrupt_entry(TIMER_VECTOR)
+            .set_handler(timer_interrupt);
         IDT.load();
     }
 }
@@ -141,4 +148,10 @@ impl PrivilegeLevel {
             _ => panic!("invalid privilege level"),
         }
     }
+}
+
+extern "x86-interrupt" fn spurious_interrupt(_frame: InterruptStackFrame) {}
+
+extern "x86-interrupt" fn timer_interrupt(_frame: InterruptStackFrame) {
+    device::timer_tick();
 }

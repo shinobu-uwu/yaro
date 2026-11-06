@@ -4,6 +4,7 @@ use yaro_memory::address::VirtualAddress;
 
 use crate::x64::{gdt::SegmentSelector, registers::rflags::RFlags};
 
+pub mod msr;
 pub mod rflags;
 
 #[derive(Clone, Copy)]
