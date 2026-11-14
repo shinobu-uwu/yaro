@@ -66,7 +66,20 @@ Individual steps are also available:
 | `just setup` | Fetch Limine and compile its host installer |
 | `just build` | Build `target/x86_64-unknown-none/debug/yaro_kernel` |
 | `just iso` | Build the kernel and create `target/kernel.iso` |
+| `just usb /dev/sdX` | Build the ISO and write it to a Linux USB device |
 | `just run` | Build the ISO and boot it in QEMU |
+
+To create a bootable USB drive, use the whole device path, such as `/dev/sdb`;
+do not use a partition path such as `/dev/sdb1`:
+
+```bash
+just usb /dev/sdX
+```
+
+This erases the selected device. The command checks that it is a whole disk and
+that none of its partitions are mounted, then requires you to type the resolved
+device path before writing. It uses `sudo` for the write when needed. On Linux,
+install `util-linux` (for `lsblk`) and `dd` if they are not already available.
 
 Use the release profile for an optimized kernel:
 

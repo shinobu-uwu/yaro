@@ -77,6 +77,40 @@ package-iso $kernel $limine_dir $config $output $installer=limine-installer:
 iso: build setup
     {{ quote(just_executable()) }} --justfile {{ quote(justfile()) }} package-iso {{ quote(kernel) }} {{ quote(limine-dir) }} {{ quote(justfile_directory() / "limine.conf") }} {{ quote(iso-path) }} {{ quote(limine-installer) }}
 
+# Build the ISO and write it to a whole Linux USB device. This overwrites the device.
+[script]
+usb device: iso
+    device={{ quote(device) }}
+    if [[ "$(uname -s)" != Linux ]]; then
+        echo "The usb recipe currently supports Linux only." >&2
+        exit 1
+    fi
+    if [[ ! -b "$device" ]]; then
+        echo "Not a block device: $device" >&2
+        exit 1
+    fi
+    device=$(readlink -f -- "$device")
+    if [[ "$(lsblk -dnro TYPE -- "$device")" != disk ]]; then
+        echo "Use the whole disk device (for example /dev/sdb), not a partition." >&2
+        exit 1
+    fi
+    if lsblk -nrpo MOUNTPOINT -- "$device" | grep -q '[^[:space:]]'; then
+        echo "Unmount all partitions on $device before writing the ISO." >&2
+        exit 1
+    fi
+    echo "This will erase all data on $device."
+    read -r -p "Type $device to continue: " confirmation
+    if [[ "$confirmation" != "$device" ]]; then
+        echo "Confirmation did not match; aborting." >&2
+        exit 1
+    fi
+    if [[ -w "$device" ]]; then
+        dd if={{ quote(iso-path) }} of="$device" bs=4M status=progress conv=fsync
+    else
+        sudo dd if={{ quote(iso-path) }} of="$device" bs=4M status=progress conv=fsync
+    fi
+    sync
+
 # Build and boot in QEMU with UEFI. Extra arguments are forwarded to QEMU.
 [script]
 run *args: iso
