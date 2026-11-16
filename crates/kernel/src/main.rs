@@ -12,7 +12,7 @@ use limine::BaseRevision;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use yaro_arch::interrupts;
-use yaro_log::{error, info, warn};
+use yaro_log::{error, warn};
 use yaro_memory::memory_map::{MemoryRegion, MemoryType};
 use yaro_memory::paging::CurrentArch;
 use yaro_memory::paging::mapper::PageMapper;
@@ -82,11 +82,6 @@ unsafe extern "C" fn kmain() -> ! {
     // interrupts remain disabled, and no secondary CPUs have been started.
     unsafe { yaro_arch::device::init(&mut mapper) };
     interrupts::enable();
-    let addr = 0x1000 as *const usize;
-    unsafe {
-        let abc = addr.read_volatile();
-        info!("{abc}");
-    }
 
     hcf();
 }

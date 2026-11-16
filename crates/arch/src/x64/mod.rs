@@ -1,5 +1,4 @@
 use core::{mem, ptr::addr_of};
-use spin::Once;
 use yaro_memory::address::{PhysicalAddress, VirtualAddress};
 
 use crate::x64::{
@@ -12,13 +11,13 @@ use crate::x64::{
 
 mod exceptions;
 
-pub mod device;
-pub mod gdt;
-pub mod idt;
+pub(crate) mod device;
+pub(crate) mod gdt;
+pub(crate) mod idt;
 pub(crate) mod interrupts;
 pub mod port;
-pub mod registers;
-pub mod tss;
+pub(crate) mod registers;
+pub(crate) mod tss;
 
 const _: () = {
     assert!(mem::size_of::<VirtualAddress>() == 8);
@@ -28,34 +27,51 @@ const _: () = {
 };
 const STACK_SIZE: usize = 16 * 1024; // 16KiB
 
+// Slot 0 is null; the 64-bit TSS descriptor occupies slots 1 and 2.
+pub(crate) const GDT_TSS: u16 = 1;
+pub(crate) const GDT_KERNEL_CODE: u16 = 3;
+pub(crate) const GDT_KERNEL_DATA: u16 = 4;
+pub(crate) const GDT_USER_CODE: u16 = 5;
+pub(crate) const GDT_USER_DATA: u16 = 6;
+
+pub(crate) const TSS_SELECTOR: SegmentSelector =
+    SegmentSelector::new(GDT_TSS, PrivilegeLevel::Ring0);
+
+/// Selectors for the fixed GDT layout. The GDT must be installed before use.
+pub(crate) const SELECTORS: Selectors = Selectors {
+    kernel_code: SegmentSelector::new(GDT_KERNEL_CODE, PrivilegeLevel::Ring0),
+    kernel_data: SegmentSelector::new(GDT_KERNEL_DATA, PrivilegeLevel::Ring0),
+    user_code: SegmentSelector::new(GDT_USER_CODE, PrivilegeLevel::Ring3),
+    user_data: SegmentSelector::new(GDT_USER_DATA, PrivilegeLevel::Ring3),
+};
+
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::empty();
 static mut DOUBLE_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-static SELECTORS: Once<Selectors> = Once::new();
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct TablePointer {
-    pub limit: u16,
-    pub base: VirtualAddress,
+pub(crate) struct TablePointer {
+    pub(crate) limit: u16,
+    pub(crate) base: VirtualAddress,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum PrivilegeLevel {
+pub(crate) enum PrivilegeLevel {
     Ring0 = 0,
     Ring1 = 1,
     Ring2 = 2,
     Ring3 = 3,
 }
 
-#[derive(Debug, Clone)]
-pub struct Selectors {
-    pub kernel_code: SegmentSelector,
-    pub kernel_data: SegmentSelector,
-    pub user_code: SegmentSelector,
-    pub user_data: SegmentSelector,
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Selectors {
+    pub(crate) kernel_code: SegmentSelector,
+    pub(crate) kernel_data: SegmentSelector,
+    pub(crate) user_code: SegmentSelector,
+    pub(crate) user_data: SegmentSelector,
 }
 
 /// Installs the boot CPU's GDT, TSS, and exception handlers.
@@ -71,7 +87,7 @@ pub struct Selectors {
 // for now the kenel is single-threaded, so no race condition can happen
 // eventually this will be moved to a CPU-local structure
 #[allow(static_mut_refs)]
-pub unsafe fn init() {
+pub(crate) unsafe fn init() {
     unsafe {
         let base = addr_of!(DOUBLE_FAULT_STACK) as usize;
         let top = VirtualAddress::new(base + STACK_SIZE);
@@ -81,6 +97,12 @@ pub unsafe fn init() {
         let kernel_data = GDT.push_back(Descriptor::kernel_data());
         let user_code = GDT.push_back(Descriptor::user_code());
         let user_data = GDT.push_back(Descriptor::user_data());
+        // Check the builder against the fixed layout before loading the GDT.
+        assert_eq!(tss_selector, TSS_SELECTOR);
+        assert_eq!(kernel_code, SELECTORS.kernel_code);
+        assert_eq!(kernel_data, SELECTORS.kernel_data);
+        assert_eq!(user_code, SELECTORS.user_code);
+        assert_eq!(user_data, SELECTORS.user_data);
         GDT.load();
 
         // SAFETY: These selectors refer to the present ring-0 code and data
@@ -96,19 +118,13 @@ pub unsafe fn init() {
             "mov ss, {data:x}",
             "mov ds, {data:x}",
             "mov es, {data:x}",
-            code = in(reg) u64::from(kernel_code.as_u16()),
-            data = in(reg) kernel_data.as_u16(),
+            code = in(reg) u64::from(SELECTORS.kernel_code.as_u16()),
+            data = in(reg) SELECTORS.kernel_data.as_u16(),
             out("rax") _,
             options(preserves_flags),
         );
 
-        SELECTORS.call_once(move || Selectors {
-            kernel_code,
-            kernel_data,
-            user_code,
-            user_data,
-        });
-        TaskStateSegment::load(tss_selector);
+        TaskStateSegment::load(TSS_SELECTOR);
 
         IDT.divide_error.set_handler(exceptions::divide_error);
         IDT.debug.set_handler(exceptions::debug);
@@ -156,7 +172,7 @@ pub unsafe fn init() {
 
 impl PrivilegeLevel {
     #[inline]
-    pub const fn from_u16(value: u16) -> Self {
+    pub(crate) const fn from_u16(value: u16) -> Self {
         match value {
             0 => Self::Ring0,
             1 => Self::Ring1,
