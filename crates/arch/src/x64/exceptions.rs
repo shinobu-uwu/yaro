@@ -1,5 +1,7 @@
 //! Initial exception handlers: report the exception and halt through panic.
 
+use core::arch::asm;
+
 use super::registers::InterruptStackFrame;
 
 pub(super) extern "x86-interrupt" fn divide_error(frame: InterruptStackFrame) {
@@ -70,7 +72,39 @@ pub(super) extern "x86-interrupt" fn general_protection_fault(
 }
 
 pub(super) extern "x86-interrupt" fn page_fault(frame: InterruptStackFrame, error: u64) {
-    panic!("Page fault; error code: {error:#x}\n{frame:#?}");
+    let cr2: u64;
+
+    unsafe {
+        asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, preserves_flags));
+    }
+
+    let cause = if error & (1 << 0) != 0 {
+        "protection violation"
+    } else {
+        "non-present page"
+    };
+
+    let access = if error & (1 << 4) != 0 {
+        "instruction fetch"
+    } else if error & (1 << 1) != 0 {
+        "write"
+    } else {
+        "read"
+    };
+
+    let privilege = if error & (1 << 2) != 0 {
+        "user"
+    } else {
+        "supervisor"
+    };
+
+    let reserved_bit_violation = error & (1 << 3) != 0;
+
+    panic!(
+        "Page fault at {cr2:#x}: {privilege} {access}, {cause}\n\
+     Reserved-bit violation: {reserved_bit_violation}\n\
+     Error code: {error:#x}\n{frame:#?}"
+    );
 }
 
 pub(super) extern "x86-interrupt" fn alignment_check(frame: InterruptStackFrame, error: u64) {

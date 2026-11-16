@@ -1,9 +1,10 @@
 use core::{mem, ptr::addr_of};
+use spin::Once;
 use yaro_memory::address::{PhysicalAddress, VirtualAddress};
 
 use crate::x64::{
     device::apic::{SPURIOUS_VECTOR_INDEX, TIMER_VECTOR},
-    gdt::{Descriptor, GlobalDescriptorTable},
+    gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
     idt::InterruptDescriptorTable,
     registers::InterruptStackFrame,
     tss::TaskStateSegment,
@@ -14,6 +15,7 @@ mod exceptions;
 pub mod device;
 pub mod gdt;
 pub mod idt;
+pub(crate) mod interrupts;
 pub mod port;
 pub mod registers;
 pub mod tss;
@@ -30,6 +32,31 @@ static mut TSS: TaskStateSegment = TaskStateSegment::new();
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::empty();
 static mut DOUBLE_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+static SELECTORS: Once<Selectors> = Once::new();
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C, packed)]
+pub struct TablePointer {
+    pub limit: u16,
+    pub base: VirtualAddress,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum PrivilegeLevel {
+    Ring0 = 0,
+    Ring1 = 1,
+    Ring2 = 2,
+    Ring3 = 3,
+}
+
+#[derive(Debug, Clone)]
+pub struct Selectors {
+    pub kernel_code: SegmentSelector,
+    pub kernel_data: SegmentSelector,
+    pub user_code: SegmentSelector,
+    pub user_data: SegmentSelector,
+}
 
 /// Installs the boot CPU's GDT, TSS, and exception handlers.
 ///
@@ -52,8 +79,8 @@ pub unsafe fn init() {
         let tss_selector = GDT.push_back(Descriptor::tss(&TSS));
         let kernel_code = GDT.push_back(Descriptor::kernel_code());
         let kernel_data = GDT.push_back(Descriptor::kernel_data());
-        let _user_code = GDT.push_back(Descriptor::user_code());
-        let _user_data = GDT.push_back(Descriptor::user_data());
+        let user_code = GDT.push_back(Descriptor::user_code());
+        let user_data = GDT.push_back(Descriptor::user_data());
         GDT.load();
 
         // SAFETY: These selectors refer to the present ring-0 code and data
@@ -75,6 +102,12 @@ pub unsafe fn init() {
             options(preserves_flags),
         );
 
+        SELECTORS.call_once(move || Selectors {
+            kernel_code,
+            kernel_data,
+            user_code,
+            user_data,
+        });
         TaskStateSegment::load(tss_selector);
 
         IDT.divide_error.set_handler(exceptions::divide_error);
@@ -119,22 +152,6 @@ pub unsafe fn init() {
             .set_handler(timer_interrupt);
         IDT.load();
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct TablePointer {
-    pub limit: u16,
-    pub base: VirtualAddress,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum PrivilegeLevel {
-    Ring0 = 0,
-    Ring1 = 1,
-    Ring2 = 2,
-    Ring3 = 3,
 }
 
 impl PrivilegeLevel {

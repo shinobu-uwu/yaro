@@ -2,6 +2,7 @@
 #![feature(abi_x86_interrupt)]
 
 pub mod device;
+pub mod interrupts;
 #[cfg(target_arch = "x86_64")]
 pub mod x64;
 

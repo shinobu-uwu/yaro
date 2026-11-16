@@ -7,12 +7,11 @@ mod sink;
 extern crate alloc;
 
 use core::arch::asm;
-use core::arch::x86_64::_rdtsc;
-use core::time::Duration;
 
 use limine::BaseRevision;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
+use yaro_arch::interrupts;
 use yaro_log::{error, info, warn};
 use yaro_memory::memory_map::{MemoryRegion, MemoryType};
 use yaro_memory::paging::CurrentArch;
@@ -82,8 +81,12 @@ unsafe extern "C" fn kmain() -> ! {
     // SAFETY: Early CPU setup installed the IDT; memory is initialized, local
     // interrupts remain disabled, and no secondary CPUs have been started.
     unsafe { yaro_arch::device::init(&mut mapper) };
-
-    info!("Kernel started!");
+    interrupts::enable();
+    let addr = 0x1000 as *const usize;
+    unsafe {
+        let abc = addr.read_volatile();
+        info!("{abc}");
+    }
 
     hcf();
 }
@@ -105,6 +108,7 @@ fn convert_memory_type(entry_type: EntryType) -> MemoryType {
 
 #[panic_handler]
 fn rust_panic(info: &core::panic::PanicInfo) -> ! {
+    interrupts::disable();
     error!("Kernel panic\n{info}");
     hcf();
 }

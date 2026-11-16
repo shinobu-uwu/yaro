@@ -19,7 +19,7 @@ impl BitmapAllocator {
     /// Create an allocator with all bytes busy
     pub const fn new() -> Self {
         Self {
-            words: [u64::MAX; STORAGE_LEN],
+            words: [0; STORAGE_LEN],
         }
     }
 
@@ -45,7 +45,7 @@ impl BitmapAllocator {
             for frame in start..end {
                 let word_index = frame / u64::BITS as usize;
                 let bit_index = frame % u64::BITS as usize;
-                self.words[word_index].set_bit(bit_index, false);
+                self.words[word_index].set_bit(bit_index, true);
             }
         }
     }
@@ -53,14 +53,9 @@ impl BitmapAllocator {
 
 impl FrameAllocator for BitmapAllocator {
     fn allocate(&mut self) -> Option<PhysicalAddress> {
-        let (word_index, word) = self
-            .words
-            .iter_mut()
-            .enumerate()
-            .find(|(_, w)| **w != u64::MAX)?;
-        let bit_index = (!*word).trailing_zeros() as usize;
-
-        word.set_bit(bit_index, true);
+        let (word_index, word) = self.words.iter_mut().enumerate().find(|(_, w)| **w != 0)?;
+        let bit_index = word.trailing_zeros() as usize;
+        word.set_bit(bit_index, false);
         let addr = (word_index * u64::BITS as usize + bit_index) * FRAME_SIZE;
 
         Some(PhysicalAddress::new(addr))
@@ -75,11 +70,11 @@ impl FrameAllocator for BitmapAllocator {
         let bit_index = frame_index % u64::BITS as usize;
 
         assert!(word_index < self.words.len(), "frame outside bitmap");
-        assert!(
-            self.words[word_index].get_bit(bit_index),
+        debug_assert!(
+            !self.words[word_index].get_bit(bit_index),
             "frame already free"
         );
 
-        self.words[word_index].set_bit(bit_index, false);
+        self.words[word_index].set_bit(bit_index, true);
     }
 }
